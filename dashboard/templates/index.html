@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Signal — Productivity Auditor</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <!-- Flatpickr date picker -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/themes/dark.css" />
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+
+  <style>
+    /* ------------------------------------------------------------------ */
+    /* Reset & base                                                         */
+    /* ------------------------------------------------------------------ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #0f1117;
+      --surface:      #1a1d27;
+      --surface-2:    #22263a;
+      --border:       #2d3149;
+      --text:         #e2e8f0;
+      --text-muted:   #718096;
+      --accent-blue:  #63b3ed;
+      --accent-purple:#9a75ff;
+      --accent-green: #48c78e;
+      --accent-orange:#f6ad55;
+      --radius:       12px;
+      --shadow:       0 4px 24px rgba(0,0,0,0.45);
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Layout                                                               */
+    /* ------------------------------------------------------------------ */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 28px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 18px;
+      letter-spacing: -0.3px;
+    }
+
+    .logo-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--accent-purple);
+      box-shadow: 0 0 8px var(--accent-purple);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.6; transform: scale(0.85); }
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .date-picker-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .date-picker-wrap input {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      width: 220px;
+      outline: none;
+    }
+    .date-picker-wrap input:focus { border-color: var(--accent-purple); }
+
+    main {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 28px 24px 48px;
+      display: grid;
+      gap: 24px;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Stats row                                                            */
+    /* ------------------------------------------------------------------ */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .stat-value.blue   { color: var(--accent-blue); }
+    .stat-value.purple { color: var(--accent-purple); }
+    .stat-value.green  { color: var(--accent-green); }
+
+    /* ------------------------------------------------------------------ */
+    /* Chart grid                                                           */
+    /* ------------------------------------------------------------------ */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 20px 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .chart-card.wide { grid-column: 1 / -1; }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .chart-wrap {
+      position: relative;
+    }
+    .chart-wrap.short  { height: 220px; }
+    .chart-wrap.medium { height: 280px; }
+    .chart-wrap.tall   { height: 340px; }
+
+    /* ------------------------------------------------------------------ */
+    /* Analyze button                                                       */
+    /* ------------------------------------------------------------------ */
+    .analyze-section {
+      display: flex;
+      justify-content: center;
+    }
+
+    #analyze-btn {
+      background: linear-gradient(135deg, #6c48ff, #a855f7);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 13px 32px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+      box-shadow: 0 4px 20px rgba(108, 72, 255, 0.4);
+      letter-spacing: 0.01em;
+    }
+    #analyze-btn:hover:not(:disabled) {
+      opacity: 0.9;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 26px rgba(108, 72, 255, 0.55);
+    }
+    #analyze-btn:active:not(:disabled) { transform: translateY(0); }
+    #analyze-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* AI panel                                                             */
+    /* ------------------------------------------------------------------ */
+    #ai-panel {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+      position: relative;
+    }
+
+    .ai-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .ai-badge {
+      background: linear-gradient(135deg, #6c48ff, #a855f7);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    .ai-title {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    #ai-loader {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent-purple);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #ai-output {
+      font-size: 14px;
+      line-height: 1.75;
+      color: #cbd5e0;
+      max-height: 560px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    #ai-output p { margin-bottom: 12px; }
+    #ai-output h4 {
+      color: var(--accent-purple);
+      font-size: 14px;
+      margin: 16px 0 6px;
+    }
+    #ai-output strong { color: var(--text); }
+    #ai-output li {
+      margin-left: 20px;
+      margin-bottom: 4px;
+      list-style: disc;
+    }
+    #ai-output .error {
+      color: #fc8181;
+    }
+
+    /* Drilldown list */
+    .drilldown-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .drilldown-row:last-child { border-bottom: none; }
+    .drilldown-bar-wrap {
+      flex: 1;
+      background: var(--surface-2);
+      border-radius: 4px;
+      height: 6px;
+      overflow: hidden;
+      min-width: 60px;
+    }
+    .drilldown-bar {
+      height: 100%;
+      border-radius: 4px;
+      background: var(--accent-blue);
+      opacity: 0.75;
+    }
+    .drilldown-meta {
+      flex: 3;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .drilldown-label {
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 13px;
+    }
+    .drilldown-url {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 11px;
+    }
+    .drilldown-url a {
+      color: #4a90d9;
+      text-decoration: none;
+      opacity: 0.8;
+    }
+    .drilldown-url a:hover { opacity: 1; text-decoration: underline; }
+    .drilldown-mins {
+      color: var(--text-muted);
+      font-size: 12px;
+      white-space: nowrap;
+      min-width: 48px;
+      text-align: right;
+    }
+    #drilldown-list::-webkit-scrollbar { width: 5px; }
+    #drilldown-list::-webkit-scrollbar-track { background: transparent; }
+    #drilldown-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* scrollbar */
+    #ai-output::-webkit-scrollbar { width: 6px; }
+    #ai-output::-webkit-scrollbar-track { background: transparent; }
+    #ai-output::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ------------------------------------------------------------------ */
+    /* Responsive                                                           */
+    /* ------------------------------------------------------------------ */
+    @media (max-width: 900px) {
+      .charts-grid { grid-template-columns: 1fr; }
+      .chart-card.wide { grid-column: auto; }
+      .stats-row { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 600px) {
+      header { flex-direction: column; gap: 12px; align-items: flex-start; }
+      main { padding: 16px 12px 36px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ====================================================================== -->
+<!-- Header                                                                  -->
+<!-- ====================================================================== -->
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    Signal
+  </div>
+  <div id="ghost-badge" style="display:none;align-items:center;gap:6px;background:#22263a;border:1px solid #2d3149;border-radius:8px;padding:5px 12px;font-size:12px;color:#718096;">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Demo data — start tracker to see real activity
+  </div>
+  <div class="header-controls">
+    <div class="date-picker-wrap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+        <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      <input type="text" id="date-range" placeholder="Select date range" readonly />
+    </div>
+  </div>
+</header>
+
+<!-- ====================================================================== -->
+<!-- Main                                                                    -->
+<!-- ====================================================================== -->
+<main>
+
+  <!-- Stats cards -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">Tracked Today</div>
+      <div class="stat-value blue" id="stat-hours">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Calendar Events Today</div>
+      <div class="stat-value purple" id="stat-events">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Days in Database</div>
+      <div class="stat-value green" id="stat-days">—</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+
+    <!-- Top apps -->
+    <div class="chart-card">
+      <div class="card-title">Top Apps by Time <span style="font-weight:400;color:#4a5568;font-size:11px;margin-left:6px;">click an app to drill down</span></div>
+      <div class="chart-wrap tall">
+        <canvas id="chart-top-apps"></canvas>
+      </div>
+    </div>
+
+    <!-- Window title drill-down -->
+    <div class="chart-card" id="drilldown-card" style="display:none;">
+      <div class="card-title" id="drilldown-title">Window Titles</div>
+      <div id="drilldown-list" style="overflow-y:auto;max-height:340px;"></div>
+    </div>
+
+    <!-- Hourly heatmap -->
+    <div class="chart-card">
+      <div class="card-title">Hourly Activity — Today</div>
+      <div class="chart-wrap tall">
+        <canvas id="chart-heatmap"></canvas>
+      </div>
+    </div>
+
+    <!-- 7-day trend -->
+    <div class="chart-card wide">
+      <div class="card-title">7-Day Activity Trend</div>
+      <div class="chart-wrap medium">
+        <canvas id="chart-trend"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Analyze button -->
+  <div class="analyze-section">
+    <button id="analyze-btn">&#9654; Analyze Bottlenecks</button>
+  </div>
+
+  <!-- AI output panel -->
+  <div id="ai-panel">
+    <div class="ai-header">
+      <span class="ai-badge">Claude AI</span>
+      <span class="ai-title">Theory of Constraints Analysis</span>
+    </div>
+    <div id="ai-loader">
+      <div class="spinner"></div>
+      Analyzing your productivity data…
+    </div>
+    <div id="ai-output"></div>
+  </div>
+
+</main>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
